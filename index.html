@@ -4,506 +4,297 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>min-GSGW: A Scalable Path to Gromov–Wasserstein</title>
+
+  <!-- MathJax -->
+  <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['\\(','\\)']],
+        displayMath: [['\\[','\\]']],
+        packages: {'[+]': ['ams']}
+      },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" crossorigin="anonymous"></script>
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;1,8..60,400&display=swap" rel="stylesheet" />
+
   <style>
-    /* ─── CSS Variables ─── */
     :root {
-      --bg:          #0a0c10;
-      --bg-card:     #111520;
-      --bg-alt:      #0d1018;
-      --border:      rgba(255,255,255,0.07);
-      --border-glow: rgba(64,220,180,0.25);
-      --accent:      #40dcb4;
-      --accent2:     #7b6ef6;
-      --accent3:     #f0c060;
-      --text:        #dde4ef;
-      --text-muted:  #7a8499;
-      --text-dim:    #4a5368;
-      --serif:       'DM Serif Display', Georgia, serif;
-      --sans:        'Syne', sans-serif;
-      --mono:        'JetBrains Mono', monospace;
-      --body:        'Lora', Georgia, serif;
-      --radius:      12px;
-      --max:         860px;
+      --bg:           #faf8f3;
+      --bg-warm:      #f5f1e8;
+      --bg-card:      #ffffff;
+      --bg-card2:     #f9f7f2;
+      --border:       #e8e2d6;
+      --border-soft:  #ede8df;
+
+      --sage:         #7aac96;
+      --sage-light:   #c8dfd7;
+      --sage-pale:    #edf5f2;
+      --lavender:     #9b8ec4;
+      --lavender-light:#d8d2f0;
+      --lavender-pale:#f2f0fb;
+      --peach:        #d4856a;
+      --peach-light:  #f0cfc4;
+      --peach-pale:   #fdf0eb;
+
+      --text:         #2a2724;
+      --text-body:    #3d3830;
+      --text-muted:   #7a7165;
+      --text-dim:     #b0a898;
+
+      --serif:   'Cormorant Garamond', Georgia, serif;
+      --sans:    'Outfit', sans-serif;
+      --mono:    'JetBrains Mono', monospace;
+      --body:    'Source Serif 4', Georgia, serif;
+
+      --radius:  14px;
+      --radius-sm: 8px;
+      --max:     900px;
+      --shadow:  0 2px 12px rgba(42,39,36,0.07);
+      --shadow-lg: 0 8px 32px rgba(42,39,36,0.10);
     }
 
-    /* ─── Reset ─── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
       background: var(--bg);
-      color: var(--text);
+      color: var(--text-body);
       font-family: var(--body);
       font-size: 17px;
-      line-height: 1.75;
+      line-height: 1.8;
       overflow-x: hidden;
     }
-
-    /* ─── Noise overlay ─── */
     body::before {
       content: '';
       position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-      opacity: 0.025;
+      background-image: radial-gradient(circle, rgba(42,39,36,0.05) 1px, transparent 1px);
+      background-size: 28px 28px;
       pointer-events: none;
       z-index: 0;
     }
 
-    /* ─── Grid background ─── */
-    body::after {
-      content: '';
-      position: fixed; inset: 0;
-      background-image:
-        linear-gradient(rgba(64,220,180,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(64,220,180,0.03) 1px, transparent 1px);
-      background-size: 48px 48px;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    /* ─── Layout ─── */
     .container {
       max-width: var(--max);
       margin: 0 auto;
-      padding: 0 2rem;
+      padding: 0 2.5rem;
       position: relative; z-index: 1;
     }
     section { padding: 5rem 0; }
-    section + section { border-top: 1px solid var(--border); }
+    section + section { border-top: 1px solid var(--border-soft); }
 
-    /* ─── Hero ─── */
-    .hero {
-      padding: 7rem 0 5rem;
-      position: relative;
-      overflow: hidden;
+    /* Nav */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(250,248,243,0.90);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 2.5rem;
+      display: flex; align-items: center; justify-content: space-between;
     }
-    .hero-glow {
-      position: absolute;
-      top: -120px; left: 50%;
-      transform: translateX(-50%);
-      width: 700px; height: 400px;
-      background: radial-gradient(ellipse at center, rgba(64,220,180,0.10) 0%, transparent 70%);
+    .nav-logo { font-family: var(--mono); font-size: 0.8rem; color: var(--sage); letter-spacing: 0.06em; }
+    .nav-links { display: flex; gap: 2.2rem; list-style: none; }
+    .nav-links a {
+      font-family: var(--sans); font-size: 0.78rem; font-weight: 500;
+      color: var(--text-muted); text-decoration: none;
+      letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--sage); }
+    @media (max-width: 580px) { .nav-links { display: none; } }
+
+    /* Hero */
+    .hero { padding: 9rem 0 4.5rem; position: relative; }
+    .hero-accent {
+      position: absolute; top: 0; right: 0;
+      width: 480px; height: 480px;
+      background: radial-gradient(ellipse at top right,
+        rgba(122,172,150,0.12) 0%, rgba(155,142,196,0.06) 45%, transparent 70%);
       pointer-events: none;
     }
     .venue-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent);
-      border: 1px solid var(--border-glow);
-      padding: 0.35rem 0.85rem;
-      border-radius: 100px;
-      margin-bottom: 2.2rem;
-      animation: fadeUp 0.6s ease both;
-    }
-    .venue-badge::before {
-      content: '';
-      display: block; width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 6px var(--accent);
-    }
-    h1 {
-      font-family: var(--serif);
-      font-size: clamp(2rem, 5vw, 3rem);
-      line-height: 1.2;
-      color: #fff;
-      max-width: 720px;
-      animation: fadeUp 0.6s 0.1s ease both;
-    }
-    h1 em { color: var(--accent); font-style: italic; }
-
-    .authors {
-      margin-top: 2rem;
-      font-family: var(--sans);
-      font-size: 0.95rem;
-      color: var(--text-muted);
-      animation: fadeUp 0.6s 0.2s ease both;
-    }
-    .authors strong { color: var(--text); }
-    .authors .equal { font-size: 0.78rem; color: var(--text-dim); }
-
-    .affil {
-      margin-top: 0.4rem;
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      font-family: var(--sans);
-    }
-
-    /* ─── Link buttons ─── */
-    .links {
-      display: flex; flex-wrap: wrap; gap: 0.75rem;
-      margin-top: 2.5rem;
-      animation: fadeUp 0.6s 0.3s ease both;
-    }
-    .btn {
       display: inline-flex; align-items: center; gap: 0.5rem;
-      font-family: var(--sans); font-size: 0.85rem; font-weight: 600;
-      padding: 0.6rem 1.3rem;
-      border-radius: 8px;
-      text-decoration: none;
-      transition: all 0.2s;
-      border: 1px solid transparent;
+      font-family: var(--sans); font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--sage); background: var(--sage-pale);
+      border: 1px solid var(--sage-light);
+      padding: 0.32rem 0.9rem; border-radius: 100px;
+      margin-bottom: 1.8rem;
+      animation: fadeUp 0.55s ease both;
     }
-    .btn-primary {
-      background: var(--accent);
-      color: #0a0c10;
+    .venue-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--sage); }
+    h1 {
+      font-family: var(--serif); font-size: clamp(2.1rem, 4.5vw, 3.2rem);
+      font-weight: 500; line-height: 1.18; color: var(--text);
+      max-width: 740px; letter-spacing: -0.01em;
+      animation: fadeUp 0.55s 0.08s ease both;
     }
-    .btn-primary:hover { background: #5de8c4; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(64,220,180,0.25); }
-    .btn-outline {
-      border-color: var(--border);
-      color: var(--text);
-      background: var(--bg-card);
+    h1 em { color: var(--sage); font-style: italic; }
+    .authors {
+      margin-top: 1.8rem; font-family: var(--sans); font-size: 0.97rem;
+      color: var(--text-muted);
+      animation: fadeUp 0.55s 0.15s ease both;
     }
-    .btn-outline:hover { border-color: var(--border-glow); color: var(--accent); transform: translateY(-1px); }
-    .btn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+    .authors strong { color: var(--text); font-weight: 600; }
+    .authors .equal { font-size: 0.76rem; color: var(--text-dim); margin-left: 0.4rem; }
+    .affil { margin-top: 0.35rem; font-size: 0.84rem; color: var(--text-dim); font-family: var(--sans); }
 
-    /* ─── TL;DR strip ─── */
+    /* Buttons */
+    .links { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: 2.2rem; animation: fadeUp 0.55s 0.22s ease both; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      font-family: var(--sans); font-size: 0.83rem; font-weight: 600;
+      padding: 0.6rem 1.3rem; border-radius: var(--radius-sm);
+      text-decoration: none; transition: all 0.18s; border: 1.5px solid transparent;
+    }
+    .btn-primary { background: var(--sage); color: #fff; box-shadow: 0 2px 8px rgba(122,172,150,0.35); }
+    .btn-primary:hover { background: #6a9c86; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(122,172,150,0.4); }
+    .btn-outline { background: var(--bg-card); color: var(--text-muted); border-color: var(--border); box-shadow: var(--shadow); }
+    .btn-outline:hover { border-color: var(--sage-light); color: var(--sage); transform: translateY(-1px); }
+    .btn svg { width: 15px; height: 15px; fill: currentColor; flex-shrink: 0; }
+
+    /* TL;DR */
     .tldr {
-      margin-top: 3rem;
-      padding: 1.2rem 1.5rem;
-      border-left: 3px solid var(--accent);
-      background: rgba(64,220,180,0.05);
-      border-radius: 0 8px 8px 0;
-      font-size: 1rem;
-      color: var(--text);
-      animation: fadeUp 0.6s 0.35s ease both;
+      margin-top: 2.5rem; padding: 1.1rem 1.4rem;
+      border-left: 3px solid var(--sage); background: var(--sage-pale);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 0.97rem; color: var(--text-body);
+      animation: fadeUp 0.55s 0.28s ease both;
     }
     .tldr strong {
-      font-family: var(--sans);
-      font-size: 0.72rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--accent);
-      display: block;
-      margin-bottom: 0.35rem;
+      font-family: var(--sans); font-size: 0.68rem;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--sage); display: block; margin-bottom: 0.3rem;
     }
 
-    /* ─── Section headings ─── */
-    h2 {
-      font-family: var(--serif);
-      font-size: 1.9rem;
-      color: #fff;
-      margin-bottom: 1.5rem;
-    }
-    h3 {
-      font-family: var(--sans);
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 0.75rem;
-    }
+    h2 { font-family: var(--serif); font-size: 2rem; font-weight: 500; color: var(--text); margin-bottom: 1.4rem; letter-spacing: -0.01em; }
+    h3 { font-family: var(--sans); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sage); margin-bottom: 0.7rem; }
 
-    /* ─── Abstract ─── */
-    .abstract-body {
-      color: var(--text);
-      font-size: 1rem;
-      line-height: 1.8;
-    }
+    .divider { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; }
+    .divider-line { flex: 1; height: 1px; background: var(--border); }
+    .divider-lozenge { width: 28px; height: 8px; background: var(--sage-light); border-radius: 100px; }
+
+    /* Abstract */
+    .abstract-body { font-size: 1rem; line-height: 1.85; }
     .abstract-body p + p { margin-top: 1em; }
 
-    /* ─── Contributions ─── */
-    .contrib-list {
-      list-style: none;
-      display: flex; flex-direction: column; gap: 1rem;
-      margin-top: 1rem;
+    /* Pills */
+    .props { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.8rem; }
+    .prop {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-family: var(--sans); font-size: 0.8rem; font-weight: 600;
+      padding: 0.38rem 0.9rem; border-radius: 100px; border: 1.5px solid;
     }
-    .contrib-list li {
-      display: grid;
-      grid-template-columns: 2.5rem 1fr;
-      gap: 0.75rem;
-      align-items: start;
-    }
-    .contrib-num {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      color: var(--accent);
-      background: rgba(64,220,180,0.1);
-      border: 1px solid var(--border-glow);
-      border-radius: 6px;
-      text-align: center;
-      padding: 0.2rem 0;
-      margin-top: 0.15rem;
-    }
-    .contrib-list li p { font-size: 0.97rem; color: var(--text); }
-    .contrib-list li strong { color: #fff; }
+    .prop::before { content: '✓'; font-size: 0.72rem; }
+    .prop-sage  { color: #5a8f78; border-color: var(--sage-light);     background: var(--sage-pale); }
+    .prop-lav   { color: #7b6ead; border-color: var(--lavender-light); background: var(--lavender-pale); }
+    .prop-peach { color: #b56a52; border-color: var(--peach-light);    background: var(--peach-pale); }
 
-    /* ─── Method cards ─── */
-    .method-cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1.25rem;
-      margin-top: 2rem;
+    /* Contributions */
+    .contrib-list { list-style: none; display: flex; flex-direction: column; gap: 1.1rem; margin-top: 1.2rem; }
+    .contrib-list li {
+      display: grid; grid-template-columns: 2.8rem 1fr; gap: 1rem; align-items: start;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.2rem 1.4rem;
+      box-shadow: var(--shadow); transition: box-shadow 0.2s, transform 0.2s;
     }
+    .contrib-list li:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+    .contrib-num {
+      font-family: var(--mono); font-size: 0.75rem; color: var(--sage);
+      background: var(--sage-pale); border: 1px solid var(--sage-light);
+      border-radius: var(--radius-sm); text-align: center; padding: 0.3rem 0;
+    }
+    .contrib-list li p { font-size: 0.95rem; }
+    .contrib-list li strong { color: var(--text); }
+
+    /* Method cards */
+    .method-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 1.2rem; margin-top: 2rem; }
     @media (max-width: 640px) { .method-cards { grid-template-columns: 1fr; } }
     .method-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      transition: border-color 0.2s, transform 0.2s;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.5rem;
+      box-shadow: var(--shadow); transition: box-shadow 0.2s, transform 0.2s;
     }
-    .method-card:hover { border-color: var(--border-glow); transform: translateY(-2px); }
-    .method-card .step {
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      color: var(--accent);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 0.6rem;
-    }
-    .method-card h4 {
-      font-family: var(--sans);
-      font-size: 1rem;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 0.6rem;
-    }
-    .method-card p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.65; }
+    .method-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    .method-card .step { font-family: var(--mono); font-size: 0.67rem; color: var(--sage); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.55rem; }
+    .method-card h4 { font-family: var(--sans); font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 0.55rem; }
+    .method-card p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.65; }
 
-    /* ─── Equation block ─── */
+    /* Equation block */
     .eq-block {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.75rem 2rem;
-      margin: 2rem 0;
-      overflow-x: auto;
-    }
-    .eq-block code {
-      font-family: var(--mono);
-      font-size: 0.95rem;
-      color: var(--accent3);
-      display: block;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-left: 3px solid var(--lavender);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 1.5rem 2rem; margin: 2rem 0;
+      box-shadow: var(--shadow); overflow-x: auto;
       text-align: center;
-      white-space: pre;
     }
-    .eq-label {
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--text-dim);
-      text-align: center;
-      margin-top: 0.75rem;
-    }
+    .eq-label { font-family: var(--sans); font-size: 0.75rem; color: var(--text-dim); margin-top: 0.75rem; text-align: center; }
 
-    /* ─── Property pills ─── */
-    .props {
-      display: flex; flex-wrap: wrap; gap: 0.75rem;
-      margin-top: 1.75rem;
+    /* Figures */
+    .figure-wrap {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      box-shadow: var(--shadow); margin: 2rem 0;
     }
-    .prop {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      font-family: var(--sans); font-size: 0.82rem; font-weight: 600;
-      padding: 0.45rem 1rem;
-      border-radius: 100px;
-      border: 1px solid;
+    .figure-wrap object, .figure-wrap iframe { display: block; width: 100%; border: none; }
+    .figure-caption {
+      padding: 0.9rem 1.25rem; border-top: 1px solid var(--border-soft);
+      background: var(--bg-card2); font-family: var(--sans); font-size: 0.82rem;
+      color: var(--text-muted); line-height: 1.55;
     }
-    .prop-green  { color: var(--accent);  border-color: rgba(64,220,180,0.3);  background: rgba(64,220,180,0.07); }
-    .prop-purple { color: var(--accent2); border-color: rgba(123,110,246,0.3); background: rgba(123,110,246,0.07); }
-    .prop-yellow { color: var(--accent3); border-color: rgba(240,192,96,0.3);  background: rgba(240,192,96,0.07); }
-    .prop::before { content: '✓'; font-size: 0.78rem; }
+    .figure-caption strong { color: var(--text); }
 
-    /* ─── Results tables ─── */
-    .table-wrap {
-      overflow-x: auto;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      margin-top: 1.75rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-family: var(--sans);
-      font-size: 0.84rem;
-    }
+    /* Tables */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); margin-top: 1.5rem; box-shadow: var(--shadow); }
+    table { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 0.83rem; }
     thead th {
-      background: var(--bg-alt);
-      color: var(--text-muted);
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      text-align: center;
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
+      background: var(--bg-warm); color: var(--text-muted); font-weight: 600;
+      letter-spacing: 0.04em; text-align: center; padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
     }
     thead th:first-child { text-align: left; }
-    tbody tr { transition: background 0.15s; }
-    tbody tr:hover { background: rgba(255,255,255,0.02); }
-    tbody td {
-      padding: 0.65rem 1rem;
-      text-align: center;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-muted);
-    }
+    tbody tr { transition: background 0.12s; }
+    tbody tr:hover { background: var(--bg-card2); }
+    tbody td { padding: 0.62rem 1rem; text-align: center; border-bottom: 1px solid var(--border-soft); color: var(--text-muted); }
     tbody td:first-child { text-align: left; color: var(--text); font-weight: 500; }
     tbody tr:last-child td { border-bottom: none; }
-    .ours td { background: rgba(64,220,180,0.04); color: var(--text) !important; }
-    .ours td:first-child { color: var(--accent) !important; }
-    .bold { color: var(--accent) !important; font-weight: 700; }
+    .ours td { background: var(--sage-pale); }
+    .ours td:first-child { color: var(--sage) !important; font-weight: 700; }
+    .bold { color: #3d7d64 !important; font-weight: 700; }
 
-    /* ─── Complexity table ─── */
-    .complexity-table tbody td:last-child {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      color: var(--text-muted);
-    }
-    .ours .complexity-table tbody td:last-child { color: var(--accent); }
-
-    /* ─── Runtime visual ─── */
+    /* Runtime bars */
     .runtime-bars { margin-top: 2rem; }
-    .runtime-bar-row {
-      display: grid;
-      grid-template-columns: 140px 1fr auto;
-      gap: 1rem;
-      align-items: center;
-      margin-bottom: 0.75rem;
-      font-size: 0.85rem;
-    }
-    .runtime-bar-label { font-family: var(--sans); color: var(--text-muted); font-size: 0.82rem; }
-    .runtime-bar-track {
-      height: 10px;
-      background: var(--bg-card);
-      border-radius: 100px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-    .runtime-bar-fill {
-      height: 100%;
-      border-radius: 100px;
-      transition: width 1.2s cubic-bezier(0.4,0,0.2,1);
-    }
-    .runtime-val {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      min-width: 50px;
-      text-align: right;
-    }
+    .runtime-bar-row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 1rem; align-items: center; margin-bottom: 0.8rem; }
+    .runtime-bar-label { font-family: var(--sans); font-size: 0.82rem; color: var(--text-muted); }
+    .runtime-bar-track { height: 9px; background: var(--bg-warm); border-radius: 100px; overflow: hidden; border: 1px solid var(--border); }
+    .runtime-bar-fill { height: 100%; border-radius: 100px; }
+    .runtime-val { font-family: var(--mono); font-size: 0.76rem; color: var(--text-muted); text-align: right; }
 
-    /* ─── Bibtex ─── */
-    .bibtex {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      margin-top: 1.5rem;
-    }
-    .bibtex-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0.75rem 1.25rem;
-      background: var(--bg-alt);
-      border-bottom: 1px solid var(--border);
-    }
-    .bibtex-header span {
-      font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim);
-    }
-    .copy-btn {
-      font-family: var(--sans); font-size: 0.75rem; font-weight: 600;
-      color: var(--accent); background: none; border: none;
-      cursor: pointer; padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      transition: background 0.15s;
-    }
-    .copy-btn:hover { background: rgba(64,220,180,0.1); }
-    .bibtex pre {
-      font-family: var(--mono);
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      padding: 1.25rem 1.5rem;
-      overflow-x: auto;
-      line-height: 1.7;
-    }
-    .bibtex pre .key   { color: var(--accent2); }
-    .bibtex pre .val   { color: var(--accent3); }
-    .bibtex pre .brace { color: var(--accent); }
+    /* BibTeX */
+    .bibtex { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 1.5rem; box-shadow: var(--shadow); }
+    .bibtex-header { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 1.2rem; background: var(--bg-warm); border-bottom: 1px solid var(--border); }
+    .bibtex-header span { font-family: var(--mono); font-size: 0.73rem; color: var(--text-dim); }
+    .copy-btn { font-family: var(--sans); font-size: 0.75rem; font-weight: 600; color: var(--sage); background: none; border: none; cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; transition: background 0.15s; }
+    .copy-btn:hover { background: var(--sage-pale); }
+    .bibtex pre { font-family: var(--mono); font-size: 0.78rem; color: var(--text-muted); padding: 1.2rem 1.5rem; overflow-x: auto; line-height: 1.75; background: #fefdfb; }
+    .bk { color: var(--sage); } .kk { color: var(--lavender); } .vv { color: var(--peach); }
 
-    /* ─── Footer ─── */
-    footer {
-      padding: 3rem 0;
-      text-align: center;
-      font-family: var(--sans);
-      font-size: 0.8rem;
-      color: var(--text-dim);
-      border-top: 1px solid var(--border);
-      position: relative; z-index: 1;
-    }
+    .ack-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.4rem 1.6rem; font-size: 0.9rem; color: var(--text-muted); line-height: 1.7; box-shadow: var(--shadow); }
+
+    footer { padding: 2.5rem 0; text-align: center; font-family: var(--sans); font-size: 0.79rem; color: var(--text-dim); border-top: 1px solid var(--border); position: relative; z-index: 1; }
     footer a { color: var(--text-muted); text-decoration: none; }
-    footer a:hover { color: var(--accent); }
+    footer a:hover { color: var(--sage); }
 
-    /* ─── Animations ─── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(18px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .reveal {
-      opacity: 0; transform: translateY(20px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-    .reveal.visible { opacity: 1; transform: none; }
-
-    /* ─── Divider ─── */
-    .divider {
-      display: flex; align-items: center; gap: 1rem;
-      margin-bottom: 2rem;
-    }
-    .divider-line { flex: 1; height: 1px; background: var(--border); }
-    .divider-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 6px var(--accent); }
-
-    /* ─── Accent math ─── */
-    .math { font-family: var(--mono); color: var(--accent3); }
-
-    /* ─── Acknowledgment ─── */
-    .ack-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      line-height: 1.7;
-    }
-
-    /* ─── Nav ─── */
-    nav {
-      position: fixed; top: 0; left: 0; right: 0;
-      z-index: 100;
-      background: rgba(10,12,16,0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 0.75rem 2rem;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .nav-logo {
-      font-family: var(--mono); font-size: 0.82rem;
-      color: var(--accent); letter-spacing: 0.05em;
-    }
-    .nav-links {
-      display: flex; gap: 2rem;
-      list-style: none;
-    }
-    .nav-links a {
-      font-family: var(--sans); font-size: 0.8rem; font-weight: 600;
-      color: var(--text-muted); text-decoration: none;
-      letter-spacing: 0.05em; text-transform: uppercase;
-      transition: color 0.15s;
-    }
-    .nav-links a:hover { color: var(--accent); }
-    @media (max-width: 560px) { .nav-links { display: none; } }
-
-    /* ─── Hero offset for fixed nav ─── */
-    .hero { padding-top: 9rem; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+    .reveal { opacity:0; transform:translateY(18px); transition: opacity 0.55s ease, transform 0.55s ease; }
+    .reveal.visible { opacity:1; transform:none; }
   </style>
 </head>
 <body>
 
-<!-- Navigation -->
 <nav>
   <div class="nav-logo">min-GSGW</div>
   <ul class="nav-links">
@@ -514,286 +305,232 @@
   </ul>
 </nav>
 
-<!-- ═══════════════════════════════════════════════════════ HERO ══ -->
+<!-- HERO -->
 <header class="hero">
-  <div class="hero-glow"></div>
+  <div class="hero-accent"></div>
   <div class="container">
     <div class="venue-badge">arXiv 2025 · Optimal Transport</div>
-
     <h1>Min Generalized Sliced Gromov–Wasserstein:<br><em>A Scalable Path to Gromov–Wasserstein</em></h1>
-
     <div class="authors">
       <strong>Ashkan Shahbazi</strong><sup>*</sup>&ensp;
       <strong>Xinran Liu</strong><sup>*</sup>&ensp;
       Ping He&ensp;
       Soheil Kolouri
-      <span class="equal">&nbsp;&nbsp;* Equal contribution</span>
+      <span class="equal">* Equal contribution</span>
     </div>
-    <div class="affil">Vanderbilt University · MINT Lab</div>
-
+    <div class="affil">Vanderbilt University &nbsp;·&nbsp; MINT Lab</div>
     <div class="links">
       <a href="https://arxiv.org/abs/2605.13753" class="btn btn-primary">
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
         Paper (PDF)
       </a>
-      <a href="Coming Soon" class="btn btn-outline">
+      <a href="#" class="btn btn-outline">
         <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-        Code
+        Code (Coming Soon)
       </a>
       <a href="https://arxiv.org/abs/2605.13753" class="btn btn-outline">
-        <svg viewBox="0 0 24 24"><path d="M13 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-9h-2v8H5V5h8V3z M21 3h-5v2h3.59l-9.3 9.29 1.42 1.42L21 6.41V10h2V3h-2z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M13 3H4a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-9h-2v8H5V5h8V3zM21 3h-5v2h3.59l-9.3 9.29 1.42 1.42L21 6.41V10h2V3h-2z"/></svg>
         arXiv
       </a>
     </div>
-
     <div class="tldr reveal">
       <strong>TL;DR</strong>
-      We propose min-GSGW, a sliced Gromov–Wasserstein formulation using learnable nonlinear
-      slicers that induce explicit transport plans in <span class="math">O(n log n)</span> time —
+      We propose \(\mathrm{min\text{-}GSGW}\), a sliced Gromov–Wasserstein formulation using learnable
+      nonlinear slicers that induce explicit transport plans in \(\mathcal{O}(n \log n)\) time —
       achieving competitive GW objectives and state-of-the-art geodesic accuracy on shape matching
       benchmarks, with an amortized variant for feed-forward inference on unseen pairs.
     </div>
   </div>
 </header>
 
-<!-- ═══════════════════════════════════════════════════ ABSTRACT ══ -->
+<!-- ABSTRACT -->
 <section id="abstract">
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">Abstract</h2>
     <div class="abstract-body reveal">
-      <p>
-        We propose <strong>min Generalized Sliced Gromov–Wasserstein (min-GSGW)</strong>, a sliced
-        formulation for the Gromov–Wasserstein (GW) problem using expressive generalized slicers.
-        The key idea is to learn coupled nonlinear slicers that assign compatible push-forward values
-        to both input measures, so that monotone coupling in the projected domain lifts to a transport
-        plan evaluated against the GW objective in the original spaces.
-      </p>
-      <p>
-        The resulting plan induces a GW objective value, and min-GSGW minimizes this cost directly
-        in the original spaces. We further show that min-GSGW is <strong>rigid-motion invariant</strong>,
-        a crucial property for geometric matching and shape analysis tasks.
-      </p>
-      <p>
-        We validate on animal mesh matching, horse shape interpolation, and ShapeNet part transfer.
-        Results show that min-GSGW produces meaningful geometric correspondences and GW objective
-        values at substantially lower computational cost than existing GW solvers.
-      </p>
+      <p>We propose <strong>min Generalized Sliced Gromov–Wasserstein (\(\mathrm{min\text{-}GSGW}\))</strong>, a sliced formulation for the Gromov–Wasserstein (GW) problem using expressive generalized slicers. The key idea is to learn coupled nonlinear slicers that assign compatible push-forward values to both input measures, so that monotone coupling in the projected domain lifts to a transport plan evaluated against the GW objective in the original spaces.</p>
+      <p>The resulting plan induces a GW objective value, and \(\mathrm{min\text{-}GSGW}\) minimizes this cost directly in the original spaces. We further show that \(\mathrm{min\text{-}GSGW}\) is <strong>rigid-motion invariant</strong>, a crucial property for geometric matching and shape analysis tasks.</p>
+      <p>We validate on animal mesh matching, horse shape interpolation, and ShapeNet part transfer. Results show that \(\mathrm{min\text{-}GSGW}\) produces meaningful geometric correspondences and GW objective values at substantially lower computational cost than existing GW solvers.</p>
     </div>
-
     <div class="props reveal">
-      <span class="prop prop-green">Rigid-motion invariant</span>
-      <span class="prop prop-green">Explicit transport plans</span>
-      <span class="prop prop-purple">O(n log n) plan extraction</span>
-      <span class="prop prop-purple">Amortized inference</span>
-      <span class="prop prop-yellow">GW upper bound guarantee</span>
+      <span class="prop prop-sage">Rigid-motion invariant</span>
+      <span class="prop prop-sage">Explicit transport plans</span>
+      <span class="prop prop-lav">\(\mathcal{O}(n \log n)\) plan extraction</span>
+      <span class="prop prop-lav">Amortized inference</span>
+      <span class="prop prop-peach">GW upper bound guarantee</span>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════ CONTRIBUTIONS ══ -->
-<section id="contributions">
+<!-- CONTRIBUTIONS -->
+<section>
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">Contributions</h2>
     <ul class="contrib-list">
       <li class="reveal">
         <div class="contrib-num">01</div>
-        <p>
-          <strong>Generalized slicer framework.</strong>
-          We introduce min-GSGW — a coupled nonlinear slicer construction where both spaces share a
-          common scalarization via a lifting map, inducing transport plans by sorting push-forward values.
-          Nonlinearity reaches regions of coupling space inaccessible to linear projections.
-        </p>
+        <p><strong>Generalized slicer framework.</strong> We introduce \(\mathrm{min\text{-}GSGW}\) — a coupled nonlinear slicer construction where both spaces share a common scalarization via a lifting map \(h: \mathcal{X} \to \mathcal{Y}\), inducing transport plans by sorting push-forward values. Nonlinearity reaches regions of coupling space inaccessible to linear projections.</p>
       </li>
       <li class="reveal">
         <div class="contrib-num">02</div>
-        <p>
-          <strong>Structural theory.</strong>
-          We establish rigid-motion invariance and show min-GSGW is a valid upper bound on the GW
-          distance. We optimize via a differentiable sorting relaxation (LapSum), annealed toward
-          hard permutations at inference.
-        </p>
+        <p><strong>Structural theory.</strong> We establish rigid-motion invariance and show \(\mathrm{min\text{-}GSGW}\) is a valid upper bound on the GW distance. We optimize via a differentiable sorting relaxation (LapSum), annealed toward hard permutations at inference.</p>
       </li>
       <li class="reveal">
         <div class="contrib-num">03</div>
-        <p>
-          <strong>Amortized matching.</strong>
-          An amortized variant replaces per-instance optimization with a shared-weight transformer
-          architecture that predicts push-forward scores in a single forward pass, generalizing to
-          unseen shape pairs without reoptimization.
-        </p>
+        <p><strong>Amortized matching.</strong> An amortized variant replaces per-instance optimization with a shared-weight transformer architecture that predicts push-forward scores in a single forward pass, generalizing to unseen shape pairs without reoptimization.</p>
       </li>
     </ul>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════════ METHOD ══ -->
+<!-- METHOD -->
 <section id="method">
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">Method</h2>
-    <p class="reveal" style="color:var(--text-muted); font-size:0.97rem;">
-      Transport plan construction proceeds in three stages. By composing a nonlinear
-      rearrangement <span class="math">ξ</span> into the slicer, the full 1D GW plan
-      is recoverable from monotone matching under mild conditions (Proposition 1).
+
+    <div class="figure-wrap reveal">
+      <object data="Figures/teaser_minGSGW_v4.pdf" type="application/pdf" style="height:420px;">
+        <iframe src="Figures/teaser_minGSGW_v4.pdf" style="height:420px;">
+          <p style="padding:2rem;color:var(--text-muted);font-family:var(--sans);">PDF rendering not supported. <a href="Figures/teaser_minGSGW_v4.pdf" style="color:var(--sage);">Download figure.</a></p>
+        </iframe>
+      </object>
+      <div class="figure-caption">
+        <strong>Figure 1: Overview of \(\mathrm{min\text{-}GSGW}\).</strong>
+        (a) Two metric measure spaces \(\mu\) on \(\mathcal{X} \subset \mathbb{R}^p\) and \(\nu\) on \(\mathcal{Y} \subset \mathbb{R}^q\).
+        (b) A learned lifting \(h: \mathcal{X} \to \mathcal{Y}\) maps source points into the target domain; a shared nonlinear slicer \(f^*: \mathcal{Y} \to \mathbb{R}\) assigns push-forward values to both sets.
+        (c) Sorting and monotone matching yields the transport coupling \(\pi^{f,h}\), whose GW objective is minimized.
+      </div>
+    </div>
+
+    <p class="reveal" style="font-size:0.97rem;color:var(--text-muted);">
+      Transport plan construction proceeds in three stages. By composing a nonlinear rearrangement \(\xi\) into the slicer, the full 1D GW plan is recoverable from monotone matching under mild conditions (Proposition 1).
     </p>
 
     <div class="method-cards">
       <div class="method-card reveal">
         <div class="step">Step 01</div>
         <h4>Lift</h4>
-        <p>
-          A learned measurable map <span class="math">h: X → Y</span> embeds the
-          lower-dimensional source into the target domain, replacing the rigid
-          zero-padding of prior sliced GW methods.
-        </p>
+        <p>A learned measurable map \(h: X \to Y\) embeds the lower-dimensional source into the target domain, replacing the rigid zero-padding of prior sliced GW methods.</p>
       </div>
       <div class="method-card reveal">
         <div class="step">Step 02</div>
         <h4>Shared Nonlinear Slicer</h4>
-        <p>
-          A single scalar function <span class="math">f: Y → ℝ</span> assigns
-          push-forward values to both lifted source points and target points,
-          coupling the two orderings by construction.
-        </p>
+        <p>A single scalar function \(f: Y \to \mathbb{R}\) assigns push-forward values to both lifted source points and target points, coupling the two orderings by construction.</p>
       </div>
       <div class="method-card reveal">
         <div class="step">Step 03</div>
         <h4>Sort &amp; Evaluate</h4>
-        <p>
-          Sorting the push-forward sequences and applying monotone matching yields
-          a feasible coupling <span class="math">π<sup>f,h</sup></span>, whose GW loss
-          is evaluated in the <em>original</em> metric spaces and minimized.
-        </p>
+        <p>Sorting the push-forward sequences and applying monotone matching yields a feasible coupling \(\pi^{f,h}\), whose GW loss is evaluated in the <em>original</em> metric spaces and minimized.</p>
       </div>
     </div>
 
     <div class="eq-block reveal">
-      <code>min-GSGW(μ, ν) := inf_{f ∈ 𝓕, h ∈ 𝓗}  𝓛_GW(μ, ν; π^mon_{f,h})</code>
+      \[\mathrm{min\text{-}GSGW}(\mu,\nu) \;:=\; \inf_{f \in \mathcal{F},\; h \in \mathcal{H}} \;\mathcal{L}_{\mathrm{GW}}\!\bigl(\mu,\,\nu;\;\pi^{\mathrm{mon}}_{f,h}\bigr)\]
       <div class="eq-label">Core objective — minimizes GW loss over slicer-induced monotone couplings</div>
     </div>
 
-    <h3 class="reveal" style="margin-top:2.5rem;">Key insight: nonlinearity unlocks coupling expressivity</h3>
-    <p class="reveal" style="color:var(--text-muted); font-size:0.95rem; max-width:680px;">
-      Linear projections restrict couplings to a narrow family of matchings. By contrast,
-      nonlinear slicers warp the push-forward ordering so that sorting the resulting values
-      induces couplings — including the 1D GW-optimal permutation — that are unreachable by
-      linear projections. This is how min-GSGW retains <span class="math">O(n log n)</span>
-      plan extraction while producing substantially richer couplings.
+    <h3 class="reveal" style="margin-top:2.5rem;">Upper bound relation to GW</h3>
+    <div class="eq-block reveal">
+      \[\mathrm{GW}^2(\mu,\nu) \;=\; \mathcal{L}_{\mathrm{GW}}(\mu,\nu;\pi^*) \;\leq\; \inf_{f \in \mathcal{F},\; h \in \mathcal{H}} \mathcal{L}_{\mathrm{GW}}\!\bigl(\mu,\nu;\pi^{f,h}\bigr) \;=\; \mathrm{min\text{-}GSGW}(\mu,\nu)\]
+      <div class="eq-label">Valid upper bound on \(\mathrm{GW}^2\); tight when the restricted family contains an optimal GW plan.</div>
+    </div>
+
+    <h3 class="reveal">Rigid-motion invariance (Proposition 2)</h3>
+    <p class="reveal" style="font-size:0.95rem;color:var(--text-muted);max-width:700px;">
+      Under natural stability assumptions on \(\mathcal{F}\) and \(\mathcal{H}\), for all \(g_X \in \mathcal{E}(p)\), \(g_Y \in \mathcal{E}(q)\):
     </p>
+    <div class="eq-block reveal">
+      \[\mathrm{min\text{-}GSGW}(g_{X\#}\mu,\; g_{Y\#}\nu) \;=\; \mathrm{min\text{-}GSGW}(\mu,\;\nu)\]
+      <div class="eq-label">The objective is invariant to rigid motions applied independently to each space.</div>
+    </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════ COMPLEXITY ══ -->
+<!-- COMPLEXITY -->
 <section>
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">Computational Complexity</h2>
-    <p class="reveal" style="color:var(--text-muted); font-size:0.95rem; margin-bottom:1rem;">
-      At inference, plan extraction costs <span class="math">O(n log n)</span> via sorting —
-      the same sorting primitive used during differentiable training. Dense GW solvers incur
-      cubic per-iteration cost from quadratic GW tensor contractions.
+    <p class="reveal" style="font-size:0.95rem;color:var(--text-muted);">
+      At inference, plan extraction costs \(\mathcal{O}(n \log n)\) via sorting. Dense GW solvers incur cubic per-iteration cost from quadratic GW tensor contractions.
     </p>
-    <div class="table-wrap reveal complexity-table">
+    <div class="table-wrap reveal">
       <table>
-        <thead>
-          <tr>
-            <th>Method</th>
-            <th>Complexity</th>
-            <th>Produces explicit plan?</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Method</th><th>Complexity</th><th>Explicit plan?</th></tr></thead>
         <tbody>
-          <tr>
-            <td>POT-GW</td>
-            <td style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">NP-hard; O(n⁴) naive · O(n³) practical</td>
-            <td>✓</td>
-          </tr>
-          <tr>
-            <td>Sinkhorn GW</td>
-            <td style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">O(n⁴) naive · O(n³) practical</td>
-            <td>✓</td>
-          </tr>
-          <tr>
-            <td>SGW</td>
-            <td style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">O(L · n log n)</td>
-            <td>—</td>
-          </tr>
-          <tr>
-            <td>MSGW</td>
-            <td style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">O(L² · n log n) · OOM at N&gt;1000</td>
-            <td>—</td>
-          </tr>
-          <tr>
-            <td>RI-SGW</td>
-            <td style="font-family:var(--mono);font-size:0.78rem;color:var(--text-muted);">O(n_iter · (Ln(p + log n) + p³))</td>
-            <td>—</td>
-          </tr>
+          <tr><td>POT-GW</td><td>NP-hard; \(\mathcal{O}(n^4)\) naive · \(\mathcal{O}(n^3)\) iter.</td><td>✓</td></tr>
+          <tr><td>Sinkhorn GW</td><td>\(\mathcal{O}(n^4)\) naive · \(\mathcal{O}(n^3)\) iter.</td><td>✓</td></tr>
+          <tr><td>SGW</td><td>\(\mathcal{O}(L \cdot n \log n)\)</td><td>—</td></tr>
+          <tr><td>MSGW</td><td>\(\mathcal{O}(L^2 \cdot n \log n)\), OOM at \(N{>}1000\)</td><td>—</td></tr>
+          <tr><td>RI-SGW</td><td>\(\mathcal{O}(n_{\mathrm{iter}}(Ln(p{+}\log n){+}p^3))\)</td><td>—</td></tr>
           <tr class="ours">
             <td><strong>min-GSGW (Ours)</strong></td>
-            <td style="font-family:var(--mono);font-size:0.78rem;color:var(--accent);font-weight:700;">O(n log n)</td>
-            <td style="color:var(--accent);font-weight:700;">✓</td>
+            <td style="color:#3d7d64;font-weight:700;">\(\mathcal{O}(n \log n)\)</td>
+            <td style="color:#3d7d64;font-weight:700;">✓</td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <div class="runtime-bars reveal" style="margin-top:2.5rem;">
-      <h3>Wall-clock runtime (RTX A6000, N=1024, avg. 10 runs)</h3>
-      <div style="margin-top:1rem;">
+      <h3>Wall-clock runtime · RTX A6000 · \(N=1024\) · avg. 10 runs</h3>
+      <div style="margin-top:1.2rem;">
         <div class="runtime-bar-row">
           <div class="runtime-bar-label">POT-GW</div>
-          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:95%;background:linear-gradient(90deg,#7b6ef6,#a08cf0);"></div></div>
+          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:95%;background:linear-gradient(90deg,var(--lavender),var(--lavender-light));"></div></div>
           <div class="runtime-val">886 ms</div>
         </div>
         <div class="runtime-bar-row">
           <div class="runtime-bar-label">Sinkhorn (ε=0.05)</div>
-          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:89%;background:linear-gradient(90deg,#7b6ef6,#a08cf0);"></div></div>
+          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:89%;background:linear-gradient(90deg,var(--lavender),var(--lavender-light));"></div></div>
           <div class="runtime-val">843 ms</div>
         </div>
         <div class="runtime-bar-row">
           <div class="runtime-bar-label">Sinkhorn (ε=0.5)</div>
-          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:85%;background:linear-gradient(90deg,#7b6ef6,#a08cf0);"></div></div>
+          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:85%;background:linear-gradient(90deg,var(--lavender),var(--lavender-light));"></div></div>
           <div class="runtime-val">822 ms</div>
         </div>
         <div class="runtime-bar-row">
           <div class="runtime-bar-label">Sinkhorn (ε=1)</div>
-          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:82%;background:linear-gradient(90deg,#7b6ef6,#a08cf0);"></div></div>
+          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:82%;background:linear-gradient(90deg,var(--lavender),var(--lavender-light));"></div></div>
           <div class="runtime-val">790 ms</div>
         </div>
         <div class="runtime-bar-row">
-          <div class="runtime-bar-label" style="color:var(--accent);font-weight:700;">min-GSGW (Ours)</div>
-          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:1.1%;background:linear-gradient(90deg,#40dcb4,#5de8c4);"></div></div>
-          <div class="runtime-val" style="color:var(--accent);font-weight:700;">9.4 ms</div>
+          <div class="runtime-bar-label" style="color:var(--sage);font-weight:600;">min-GSGW (Ours)</div>
+          <div class="runtime-bar-track"><div class="runtime-bar-fill" style="width:1.1%;background:linear-gradient(90deg,var(--sage),var(--sage-light));"></div></div>
+          <div class="runtime-val" style="color:var(--sage);font-weight:600;">9.4 ms</div>
         </div>
+      </div>
+    </div>
+
+    <div class="figure-wrap reveal" style="margin-top:2rem;">
+      <object data="Figures/runtime_benchmark.pdf" type="application/pdf" style="height:340px;">
+        <iframe src="Figures/runtime_benchmark.pdf" style="height:340px;">
+          <p style="padding:2rem;color:var(--text-muted);font-family:var(--sans);"><a href="Figures/runtime_benchmark.pdf" style="color:var(--sage);">Download runtime figure.</a></p>
+        </iframe>
+      </object>
+      <div class="figure-caption">
+        <strong>Figure 2: Runtime scaling.</strong>
+        Wall-clock time vs. \(N \in \{100,\ldots,5000\}\) on RTX A6000, averaged over 10 runs. MSGW runs out of memory beyond \(N=1000\); \(\mathrm{min\text{-}GSGW}\) scales most favorably.
       </div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════════ RESULTS ══ -->
+<!-- RESULTS -->
 <section id="results">
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">Results</h2>
 
-    <!-- Mesh matching -->
     <h3 class="reveal">Realistic Shape Matching — Geodesic Error ↓</h3>
-    <p class="reveal" style="color:var(--text-muted);font-size:0.9rem;margin-bottom:0.5rem;">
-      Princeton protocol: mean normalized geodesic distance between predicted and ground-truth
-      correspondences. Lower is better. H = Horse, E = Elephant, C = Cat.
-    </p>
+    <p class="reveal" style="font-size:0.9rem;color:var(--text-muted);margin-bottom:0.5rem;">Princeton protocol: mean normalized geodesic distance. H = Horse, E = Elephant, C = Cat.</p>
     <div class="table-wrap reveal">
       <table>
-        <thead>
-          <tr>
-            <th>Method</th>
-            <th>H–H</th><th>E–E</th><th>C–C</th>
-            <th>H–E</th><th>C–H</th><th>C–E</th>
-            <th>Time (s)</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Method</th><th>H–H</th><th>E–E</th><th>C–C</th><th>H–E</th><th>C–H</th><th>C–E</th><th>Time (s)</th></tr></thead>
         <tbody>
           <tr><td>POT</td><td>0.112</td><td>0.103</td><td>0.079</td><td>0.181</td><td>0.208</td><td>0.189</td><td>1.82</td></tr>
           <tr><td>Sinkhorn</td><td>0.178</td><td>0.194</td><td>0.138</td><td>0.247</td><td>0.281</td><td>0.236</td><td>0.41</td></tr>
@@ -810,27 +547,44 @@
       </table>
     </div>
 
-    <!-- ShapeNet -->
-    <h3 class="reveal" style="margin-top:3rem;">Amortized ShapeNet Part Segmentation — Accuracy ↑</h3>
-    <p class="reveal" style="color:var(--text-muted);font-size:0.9rem;margin-bottom:0.5rem;">
-      Mean part label transfer accuracy via unsupervised matching. Training uses no part labels.
-      Forward time per pair in milliseconds.
+    <div class="figure-wrap reveal">
+      <object data="Figures/cat_elephant.pdf" type="application/pdf" style="height:360px;">
+        <iframe src="Figures/cat_elephant.pdf" style="height:360px;">
+          <p style="padding:2rem;color:var(--text-muted);font-family:var(--sans);"><a href="Figures/cat_elephant.pdf" style="color:var(--sage);">Download figure.</a></p>
+        </iframe>
+      </object>
+      <div class="figure-caption">
+        <strong>Figure 3: Shape correspondence on animal meshes.</strong>
+        18 landmark correspondences (6 shown) from geodesic distance matrices. Blue = source, red = predicted target, black = correspondence lines. (a) POT GW. (b) Ours.
+      </div>
+    </div>
+
+    <h3 class="reveal" style="margin-top:3rem;">Horse Mesh Interpolation</h3>
+    <p class="reveal" style="font-size:0.9rem;color:var(--text-muted);margin-bottom:0.5rem;">
+      OT barycentric interpolation at \(t=0.33\) and \(t=0.67\). Although POT achieves lower GW values, our plans yield plausible dense correspondences and smooth deformations.
     </p>
+    <div class="figure-wrap reveal">
+      <object data="Figures/running_horse_v2.pdf" type="application/pdf" style="height:300px;">
+        <iframe src="Figures/running_horse_v2.pdf" style="height:300px;">
+          <p style="padding:2rem;color:var(--text-muted);font-family:var(--sans);"><a href="Figures/running_horse_v2.pdf" style="color:var(--sage);">Download figure.</a></p>
+        </iframe>
+      </object>
+      <div class="figure-caption">
+        <strong>Figure 4: Horse mesh interpolation from GW couplings.</strong>
+        POT: \(8.26{\times}10^{-3}\) (0→1), \(9.71{\times}10^{-3}\) (1→2). Ours: \(2.88{\times}10^{-2}\) (0→1), \(4.62{\times}10^{-2}\) (1→2). Global GW optimality does not imply geometric usefulness.
+      </div>
+    </div>
+
+    <h3 class="reveal" style="margin-top:3rem;">Amortized ShapeNet Part Segmentation — Accuracy ↑</h3>
+    <p class="reveal" style="font-size:0.9rem;color:var(--text-muted);margin-bottom:0.5rem;">Mean part label transfer accuracy. No part labels used during training. Forward time per pair in ms.</p>
     <div class="table-wrap reveal">
       <table>
-        <thead>
-          <tr>
-            <th>Method</th>
-            <th>Acc. N=256</th><th>ms</th>
-            <th>Acc. N=512</th><th>ms</th>
-            <th>Acc. N=1024</th><th>ms</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Method</th><th>Acc. \(N{=}256\)</th><th>ms</th><th>Acc. \(N{=}512\)</th><th>ms</th><th>Acc. \(N{=}1024\)</th><th>ms</th></tr></thead>
         <tbody>
           <tr><td>POT GW</td><td>68.9%</td><td>75.3</td><td>69.8%</td><td>375.7</td><td>73.5%</td><td>886.2</td></tr>
-          <tr><td>Sinkhorn (ε=0.05)</td><td>66.1%</td><td>164.7</td><td>66.6%</td><td>361.1</td><td>71.3%</td><td>843.1</td></tr>
-          <tr><td>Sinkhorn (ε=0.5)</td><td>64.3%</td><td>91.7</td><td>65.5%</td><td>370.2</td><td>68.7%</td><td>821.9</td></tr>
-          <tr><td>Sinkhorn (ε=1)</td><td>62.8%</td><td>72.3</td><td>64.7%</td><td>303.3</td><td>67.4%</td><td>790.2</td></tr>
+          <tr><td>Sinkhorn (\(\varepsilon{=}0.05\))</td><td>66.1%</td><td>164.7</td><td>66.6%</td><td>361.1</td><td>71.3%</td><td>843.1</td></tr>
+          <tr><td>Sinkhorn (\(\varepsilon{=}0.5\))</td><td>64.3%</td><td>91.7</td><td>65.5%</td><td>370.2</td><td>68.7%</td><td>821.9</td></tr>
+          <tr><td>Sinkhorn (\(\varepsilon{=}1\))</td><td>62.8%</td><td>72.3</td><td>64.7%</td><td>303.3</td><td>67.4%</td><td>790.2</td></tr>
           <tr class="ours">
             <td><strong>min-GSGW (Ours)</strong></td>
             <td class="bold">78.2%</td><td class="bold">2.66</td>
@@ -841,57 +595,75 @@
       </table>
     </div>
 
-    <!-- Ablation -->
-    <h3 class="reveal" style="margin-top:3rem;">Ablation — Slicer Design (H–H geodesic error ↓)</h3>
+    <div class="figure-wrap reveal">
+      <object data="Figures/match_vis_transposed_v2.pdf" type="application/pdf" style="height:520px;">
+        <iframe src="Figures/match_vis_transposed_v2.pdf" style="height:520px;">
+          <p style="padding:2rem;color:var(--text-muted);font-family:var(--sans);"><a href="Figures/match_vis_transposed_v2.pdf" style="color:var(--sage);">Download figure.</a></p>
+        </iframe>
+      </object>
+      <div class="figure-caption">
+        <strong>Figure 5: Qualitative correspondences on ShapeNet.</strong>
+        Each column = one object category. Rows: source, POT GW, GW Sinkhorn, ours. Source colors propagated via the estimated coupling. Bottom: part-matching accuracy.
+      </div>
+    </div>
+
+    <h3 class="reveal" style="margin-top:3rem;">Ablation — Slicer Design</h3>
+    <p class="reveal" style="font-size:0.9rem;color:var(--text-muted);margin-bottom:0.5rem;">Geodesic error \((\downarrow)\). Nonlinearity and coupling each provide an independent gain.</p>
     <div class="table-wrap reveal">
       <table>
-        <thead>
-          <tr><th>Slicer</th><th>Relation</th><th>H–H</th><th>E–E</th><th>C–C</th><th>H–E</th></tr>
-        </thead>
+        <thead><tr><th>Slicer</th><th>Relation</th><th>H–H</th><th>E–E</th><th>C–C</th><th>H–E</th></tr></thead>
         <tbody>
           <tr><td>Linear</td><td>Independent</td><td>0.162</td><td>0.178</td><td>0.121</td><td>0.238</td></tr>
           <tr><td>Linear</td><td>Dependent</td><td>0.134</td><td>0.147</td><td>0.098</td><td>0.203</td></tr>
           <tr><td>Nonlinear</td><td>Independent</td><td>0.108</td><td>0.119</td><td>0.081</td><td>0.172</td></tr>
           <tr class="ours">
             <td><strong>Nonlinear</strong></td><td><strong>Dependent</strong></td>
-            <td class="bold">0.079</td><td class="bold">0.091</td>
-            <td class="bold">0.058</td><td class="bold">0.138</td>
+            <td class="bold">0.079</td><td class="bold">0.091</td><td class="bold">0.058</td><td class="bold">0.138</td>
           </tr>
         </tbody>
       </table>
     </div>
-    <p class="reveal" style="color:var(--text-muted);font-size:0.88rem;margin-top:0.75rem;">
-      Nonlinearity and coupling each independently reduce geodesic error. The full model (nonlinear + dependent) benefits from both.
-    </p>
+
+    <div class="figure-wrap reveal" style="margin-top:2rem;">
+      <object data="Figures/toy_teaser.pdf" type="application/pdf" style="height:300px;">
+        <iframe src="Figures/toy_teaser.pdf" style="height:300px;">
+          <p style="padding:2rem;color:var(--text-muted);font-family:var(--sans);"><a href="Figures/toy_teaser.pdf" style="color:var(--sage);">Download figure.</a></p>
+        </iframe>
+      </object>
+      <div class="figure-caption">
+        <strong>Figure 6: Toy correspondences.</strong>
+        Qualitative comparison on four synthetic 2D-to-3D pairs. Top: GW. Bottom: ours. Source points on \(z=0\); targets in \(\mathbb{R}^3\). Our method produces cleaner, more structurally aligned matches.
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- ════════════════════════════════════════════════════ BIBTEX ══ -->
+<!-- BIBTEX -->
 <section id="bibtex">
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">BibTeX</h2>
     <div class="bibtex reveal">
       <div class="bibtex-header">
         <span>bibtex · cite this work</span>
         <button class="copy-btn" onclick="copyBibtex(this)">Copy</button>
       </div>
-      <pre id="bibtex-text"><span class="brace">@article{</span><span class="val">shahbazi2025mingsgw</span><span class="brace">,</span>
-  <span class="key">title</span>     = <span class="val">{Min Generalized Sliced Gromov-Wasserstein:
-               A Scalable Path to Gromov-Wasserstein}</span>,
-  <span class="key">author</span>    = <span class="val">{Shahbazi, Ashkan and Liu, Xinran and
-               He, Ping and Kolouri, Soheil}</span>,
-  <span class="key">journal</span>   = <span class="val">{arXiv preprint}</span>,
-  <span class="key">year</span>      = <span class="val">{2025}</span>
-<span class="brace">}</span></pre>
+      <pre><span class="bk">@article{</span><span class="vv">shahbazi2025mingsgw</span><span class="bk">,</span>
+  <span class="kk">title</span>   = <span class="vv">{Min Generalized Sliced Gromov-Wasserstein:
+             A Scalable Path to Gromov-Wasserstein}</span>,
+  <span class="kk">author</span>  = <span class="vv">{Shahbazi, Ashkan and Liu, Xinran and
+             He, Ping and Kolouri, Soheil}</span>,
+  <span class="kk">journal</span> = <span class="vv">{arXiv preprint arXiv:2605.13753}</span>,
+  <span class="kk">year</span>    = <span class="vv">{2025}</span>
+<span class="bk">}</span></pre>
     </div>
   </div>
 </section>
 
-<!-- ════════════════════════════════════════ ACKNOWLEDGMENTS ══ -->
+<!-- ACKNOWLEDGMENTS -->
 <section>
   <div class="container">
-    <div class="divider reveal"><div class="divider-line"></div><div class="divider-dot"></div><div class="divider-line"></div></div>
+    <div class="divider reveal"><div class="divider-line"></div><div class="divider-lozenge"></div><div class="divider-line"></div></div>
     <h2 class="reveal">Acknowledgments</h2>
     <div class="ack-card reveal">
       S.K. acknowledges support from the NSF CAREER Award No. 2339898.
@@ -901,46 +673,32 @@
   </div>
 </section>
 
-<!-- Footer -->
 <footer>
-  <p>
-    <a href="#">min-GSGW</a> · Vanderbilt University MINT Lab · 2025
-  </p>
-  <p style="margin-top:0.4rem;">
-    Template inspired by academic project pages.
-    Built with plain HTML, CSS, and a strong aversion to generic AI aesthetics.
-  </p>
+  <p><a href="https://arxiv.org/abs/2605.13753">min-GSGW</a> &nbsp;·&nbsp; Vanderbilt University MINT Lab &nbsp;·&nbsp; 2025</p>
 </footer>
 
 <script>
-  // ─── Scroll reveal ───
-  const reveals = document.querySelectorAll('.reveal');
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach((e, i) => {
-      if (e.isIntersecting) {
-        // stagger siblings
-        const siblings = [...e.target.parentElement.querySelectorAll('.reveal:not(.visible)')];
-        const idx = siblings.indexOf(e.target);
-        setTimeout(() => {
-          e.target.classList.add('visible');
-        }, Math.min(idx * 80, 300));
-        observer.unobserve(e.target);
-      }
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const sibs = [...e.target.parentElement.querySelectorAll('.reveal:not(.visible)')];
+      const idx  = sibs.indexOf(e.target);
+      setTimeout(() => e.target.classList.add('visible'), Math.min(idx * 75, 280));
+      obs.unobserve(e.target);
     });
-  }, { threshold: 0.08 });
-  reveals.forEach(el => observer.observe(el));
+  }, { threshold: 0.07 });
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 
-  // ─── Copy BibTeX ───
   function copyBibtex(btn) {
     const raw = `@article{shahbazi2025mingsgw,
-  title     = {Min Generalized Sliced Gromov-Wasserstein: A Scalable Path to Gromov-Wasserstein},
-  author    = {Shahbazi, Ashkan and Liu, Xinran and He, Ping and Kolouri, Soheil},
-  journal   = {arXiv preprint},
-  year      = {2025}
+  title   = {Min Generalized Sliced Gromov-Wasserstein: A Scalable Path to Gromov-Wasserstein},
+  author  = {Shahbazi, Ashkan and Liu, Xinran and He, Ping and Kolouri, Soheil},
+  journal = {arXiv preprint arXiv:2605.13753},
+  year    = {2025}
 }`;
     navigator.clipboard.writeText(raw).then(() => {
       btn.textContent = 'Copied!';
-      setTimeout(() => btn.textContent = 'Copy', 2000);
+      setTimeout(() => btn.textContent = 'Copy', 2200);
     });
   }
 </script>
